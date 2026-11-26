@@ -1,0 +1,56 @@
+/* Golden Hour: Twelve Rings — HUD and overlay styling. Warm sunset palette, lit instruments. */
+html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1030; font-family: "Segoe UI", Verdana, sans-serif; }
+#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.hidden { display: none !important; }
+#status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ---------- HUD ---------- */
+#hud { position: fixed; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.8); z-index: 5; }
+#hud-top { position: absolute; top: 12px; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 16px; gap: 12px; }
+.hud-box { background: rgba(20, 8, 40, .62); border: 1px solid rgba(255, 190, 90, .55); border-radius: 8px;
+  padding: 8px 14px; font-weight: 700; letter-spacing: .12em; font-size: 15px; }
+#hud-message { color: #ffd27a; border-color: rgba(255, 210, 122, .8); }
+#hud-left { position: absolute; left: 16px; top: 76px; display: flex; flex-direction: column; gap: 10px; }
+#hud-right { position: absolute; right: 16px; top: 76px; display: flex; flex-direction: column; gap: 10px; text-align: right; }
+.gauge { background: rgba(20, 8, 40, .62); border: 1px solid rgba(255, 190, 90, .45); border-radius: 8px; padding: 8px 12px; min-width: 150px; }
+.gauge label { display: block; font-size: 11px; letter-spacing: .22em; color: #ffb85e; font-weight: 700; }
+.gauge .big { font-size: 34px; line-height: 1.05; font-weight: 800; font-variant-numeric: tabular-nums; color: #fff8ea; }
+.gauge span { font-size: 12px; color: #ffd9a0; letter-spacing: .1em; }
+.fuel-track { height: 12px; background: rgba(0,0,0,.55); border-radius: 6px; margin: 6px 0 2px; overflow: hidden; border: 1px solid rgba(255,255,255,.25); }
+#hud-fuel-bar { height: 100%; width: 100%; background: linear-gradient(90deg, #ffb347, #ff7b2f); transition: width .2s; }
+#hud-fuel-bar.low { background: linear-gradient(90deg, #ff3b30, #ff7b2f); }
+#hud-throttle-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #4dd0ff, #2f7bff); }
+#hud-bottom { position: absolute; left: 0; right: 0; bottom: 12px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 16px; }
+#horizon { border: 2px solid rgba(255, 190, 90, .6); border-radius: 50%; background: rgba(20, 8, 40, .55); box-shadow: 0 0 18px rgba(255, 150, 60, .35); }
+#hud-help { font-size: 13px; letter-spacing: .06em; color: #ffe9c4; background: rgba(20, 8, 40, .55); border-radius: 8px; padding: 8px 12px; }
+#hud-centre { position: absolute; left: 50%; top: -8px; transform: translateX(-50%); font-size: 26px; font-weight: 800; color: #ffd27a; text-align: center; min-width: 320px; }
+
+/* ---------- Overlays ---------- */
+.overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, rgba(26, 10, 48, .18) 0%, rgba(26, 10, 48, .55) 100%); }
+.panel { text-align: center; max-width: 680px; margin: 0 20px; padding: 30px 36px 26px; border-radius: 16px;
+  background: rgba(24, 8, 44, .72); border: 1px solid rgba(255, 190, 90, .55); box-shadow: 0 18px 60px rgba(0,0,0,.55); color: #fff; }
+.panel.small { padding: 22px 40px; }
+.kicker { font-size: 13px; letter-spacing: .34em; color: #ffb85e; font-weight: 700; }
+.panel h1 { margin: 10px 0 6px; font-size: 54px; line-height: .95; letter-spacing: .02em; font-weight: 900; color: #fff3da; text-shadow: 0 3px 18px rgba(255, 140, 40, .55); }
+.panel h1 span { color: #ff9a3d; }
+.tagline { font-size: 16px; line-height: 1.5; color: #ffe9c4; margin: 10px 0 18px; }
+.modes { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.mode-btn { pointer-events: auto; cursor: pointer; background: linear-gradient(180deg, #ff9a3d, #e86a1c); color: #fff;
+  border: 1px solid #ffd27a; border-radius: 10px; padding: 12px 16px; font-size: 15px; font-weight: 800; letter-spacing: .05em;
+  font-family: inherit; box-shadow: 0 4px 16px rgba(232, 106, 28, .5); }
+.mode-btn small { display: block; font-weight: 500; font-size: 12px; letter-spacing: 0; opacity: .92; margin-top: 3px; }
+.mode-btn:hover { filter: brightness(1.12); }
+.mode-btn.wide { display: block; width: 100%; margin: 8px 0 0; }
+.mode-btn.ghost { background: transparent; box-shadow: none; }
+.controls { font-size: 13px; color: #ffd9a0; margin: 16px 0 4px; }
+.credit { font-size: 12px; color: #c9b8e8; margin: 4px 0 0; }
+#end-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0 14px; text-align: left; }
+#end-stats div { background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 190, 90, .35); border-radius: 8px; padding: 10px 14px; }
+#end-stats b { display: block; font-size: 11px; letter-spacing: .2em; color: #ffb85e; }
+#end-stats span { font-size: 24px; font-weight: 800; }
+/* Screenshot poses: shift the panel left so the plane and runway stay visible. */
+.overlay.shot-left { justify-content: flex-start; padding-left: 48px; }
+.overlay.shot-left .panel { margin: 0; max-width: 520px; text-align: left; }
+.overlay.shot-left .modes { justify-content: flex-start; }
+@media (max-width: 760px) { .panel h1 { font-size: 36px; } .gauge .big { font-size: 26px; } #horizon { width: 120px; height: 120px; } }

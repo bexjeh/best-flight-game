@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Golden Hour: Twelve Rings — Archipelago Flight</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<canvas id="scene" aria-label="Golden Hour Twelve Rings: fly the Kestrel through twelve numbered rings over a sunset archipelago, then land on the runway"></canvas>
+
+<!-- Flight HUD: altitude, speed, heading, fuel, rings, score, timer -->
+<div id="hud" class="hidden">
+  <div id="hud-top">
+    <div class="hud-box" id="hud-mode">RING COURSE</div>
+    <div class="hud-box" id="hud-message">FLY THROUGH RING 1</div>
+    <div class="hud-box" id="hud-timer">TIME 00:00</div>
+  </div>
+  <div id="hud-left">
+    <div class="gauge"><label>ALTITUDE</label><div class="big" id="hud-alt">0</div><span>m</span></div>
+    <div class="gauge"><label>SPEED</label><div class="big" id="hud-speed">0</div><span>kt</span></div>
+    <div class="gauge"><label>HEADING</label><div class="big" id="hud-heading">090&deg;</div><span id="hud-compass">E</span></div>
+  </div>
+  <div id="hud-right">
+    <div class="gauge"><label>RINGS</label><div class="big" id="hud-rings">0 / 12</div><span id="hud-next-ring">NEXT: 1</span></div>
+    <div class="gauge"><label>SCORE</label><div class="big" id="hud-score">0</div><span>pts</span></div>
+    <div class="gauge"><label>FUEL</label><div class="fuel-track"><div id="hud-fuel-bar"></div></div><span id="hud-fuel">100%</span></div>
+    <div class="gauge"><label>THROTTLE</label><div class="fuel-track"><div id="hud-throttle-bar"></div></div><span id="hud-throttle">0%</span></div>
+  </div>
+  <div id="hud-bottom">
+    <canvas id="horizon" width="180" height="180" aria-label="Artificial horizon"></canvas>
+    <div id="hud-help">W/S throttle &middot; &uarr;/&darr; pitch &middot; &larr;/&rarr; roll &middot; A/D rudder &middot; C camera &middot; P pause &middot; R restart</div>
+    <div id="hud-centre"></div>
+  </div>
+</div>
+
+<!-- Title screen -->
+<div id="title-screen" class="overlay">
+  <div class="panel">
+    <div class="kicker">SUNSET ARCHIPELAGO &middot; FLIGHT SERIES 01</div>
+    <h1>GOLDEN HOUR<br><span>TWELVE RINGS</span></h1>
+    <p class="tagline">Fly the Kestrel through all twelve numbered rings over the islands,
+      mind your fuel, and bring her home to the runway before sunset ends.</p>
+    <div class="modes">
+      <button class="mode-btn" data-mode="course" data-label="RING COURSE">1 &middot; RING COURSE<br><small>12 rings in order, then land &middot; fuel matters</small></button>
+      <button class="mode-btn" data-mode="trial" data-label="TIME TRIAL">2 &middot; TIME TRIAL<br><small>Same 12 rings, 4:00 on the clock, lean fuel</small></button>
+      <button class="mode-btn" data-mode="landing" data-label="LANDING CHALLENGE">3 &middot; LANDING CHALLENGE<br><small>Three approaches &middot; judged on touchdown</small></button>
+    </div>
+    <p class="controls">W/S throttle &nbsp;&middot;&nbsp; Arrow keys pitch &amp; roll &nbsp;&middot;&nbsp; A/D rudder &nbsp;&middot;&nbsp; C camera &nbsp;&middot; Click a mode or press 1, 2 or 3 to fly</p>
+    <p class="credit">An original game &middot; WebAudio engine, no downloads, no network</p>
+  </div>
+</div>
+
+<!-- End screen -->
+<div id="end-screen" class="overlay hidden">
+  <div class="panel">
+    <div class="kicker" id="end-kicker">SORTIE COMPLETE</div>
+    <h1 id="end-title">WHEELS DOWN</h1>
+    <p class="tagline" id="end-detail"></p>
+    <div id="end-stats"></div>
+    <button id="end-fly-again" class="mode-btn wide">FLY AGAIN &nbsp;(R)</button>
+    <button id="end-menu" class="mode-btn wide ghost">BACK TO MENU &nbsp;(M)</button>
+  </div>
+</div>
+
+<!-- Pause screen -->
+<div id="pause-screen" class="overlay hidden">
+  <div class="panel small">
+    <h1>PAUSED</h1>
+    <p class="tagline">Press P to keep flying, or R to restart the sortie.</p>
+  </div>
+</div>
+
+<p id="status" role="status" aria-live="polite"></p>
+<script src="./vendor/three.min.js"></script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
