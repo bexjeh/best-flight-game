@@ -1,76 +1,121 @@
-// soundSynth.js — every sound is synthesised with WebAudio: engine hum, wind rush,
-// ring chime, touchdown thud and crash. No audio files, no network.
-export function createSoundSynth() {
-  let ctx = null, engineOsc = null, engineGain = null, windSrc = null, windGain = null, windFilter = null;
-  let muted = false;
-
-  function ensure() {
-    if (ctx) return ctx;
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return null;
-    ctx = new AudioContext();
-    // Engine: two detuned saws through a low-pass, pitch follows throttle.
-    engineOsc = ctx.createOscillator(); engineOsc.type = 'sawtooth'; engineOsc.frequency.value = 55;
-    const engineOsc2 = ctx.createOscillator(); engineOsc2.type = 'sawtooth'; engineOsc2.frequency.value = 82;
-    engineGain = ctx.createGain(); engineGain.gain.value = 0;
-    const engineFilter = ctx.createBiquadFilter(); engineFilter.type = 'lowpass'; engineFilter.frequency.value = 420;
-    engineOsc.connect(engineFilter); engineOsc2.connect(engineFilter);
-    engineFilter.connect(engineGain); engineGain.connect(ctx.destination);
-    engineOsc.start(); engineOsc2.start();
-    // Wind: looped noise buffer through a band-pass that opens with speed.
-    const len = ctx.sampleRate * 2;
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
-    windSrc = ctx.createBufferSource(); windSrc.buffer = buf; windSrc.loop = true;
-    windFilter = ctx.createBiquadFilter(); windFilter.type = 'bandpass'; windFilter.frequency.value = 500; windFilter.Q.value = 0.6;
-    windGain = ctx.createGain(); windGain.gain.value = 0;
-    windSrc.connect(windFilter); windFilter.connect(windGain); windGain.connect(ctx.destination);
-    windSrc.start();
-    return ctx;
+// soundSynth.js — every sound is synthesised with WebAudio: no audio files,
+// no network. Engine hum (sawtooth + lowpass, pitch follows throttle),
+// wind (filtered noise, loudness follows airspeed), a ring chime, a landing
+// thump and a crash thud. Created lazily on the first key press or click so
+// browsers never block it, and guarded so a missing AudioContext can never
+// break the game.
+export class SoundSynth {
+  constructor() {
+    this.ctx = null;
+    this.muted = false;
+    this.engineOsc = null;
+    this.engineGain = null;
+    this.windSrc = null;
+    this.windGain = null;
+    this.windFilter = null;
   }
 
-  function tone(freq, dur, type, vol, when = 0) {
-    if (!ctx || muted) return;
-    const t0 = ctx.currentTime + when;
-    const osc = ctx.createOscillator(), gain = ctx.createGain();
-    osc.type = type; osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0, t0);
-    gain.gain.linearRampToValueAtTime(vol, t0 + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(t0); osc.stop(t0 + dur + 0.05);
+  ensure() {
+    if (this.ctx) {
+      if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+      return;
+    }
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.ctx = new AC();
+      // Engine: two detuned saws through a lowpass.
+      this.engineOsc = this.ctx.createOscillator();
+      this.engineOsc.type = 'sawtooth';
+      this.engineOsc.frequency.value = 70;
+      const osc2 = this.ctx.createOscillator();
+      osc2.type = 'sawtooth';
+      osc2.frequency.value = 71.5;
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 420;
+      this.engineGain = this.ctx.createGain();
+      this.engineGain.gain.value = 0;
+      this.engineOsc.connect(lp); osc2.connect(lp);
+      lp.connect(this.engineGain); this.engineGain.connect(this.ctx.destination);
+      this.engineOsc.start(); osc2.start();
+      this.engineOsc2 = osc2;
+      // Wind: looped noise buffer through a bandpass.
+      const len = this.ctx.sampleRate * 2;
+      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      this.windSrc = this.ctx.createBufferSource();
+      this.windSrc.buffer = buf; this.windSrc.loop = true;
+      this.windFilter = this.ctx.createBiquadFilter();
+      this.windFilter.type = 'bandpass'; this.windFilter.frequency.value = 700; this.windFilter.Q.value = 0.6;
+      this.windGain = this.ctx.createGain();
+      this.windGain.gain.value = 0;
+      this.windSrc.connect(this.windFilter); this.windFilter.connect(this.windGain);
+      this.windGain.connect(this.ctx.destination);
+      this.windSrc.start();
+    } catch (e) {
+      this.ctx = null;
+    }
   }
 
-  return {
-    unlock() { const c = ensure(); if (c && c.state === 'suspended') c.resume(); },
-    setFlight(throttle, speed, flying) {
-      if (!ctx || muted) return;
-      const t = ctx.currentTime;
-      if (engineGain) {
-        engineGain.gain.setTargetAtTime(flying || throttle > 0.05 ? 0.05 + throttle * 0.05 : 0, t, 0.1);
-        if (engineOsc) engineOsc.frequency.setTargetAtTime(50 + throttle * 90, t, 0.1);
-      }
-      if (windGain && windFilter) {
-        windGain.gain.setTargetAtTime(Math.min(0.12, speed * 0.0016), t, 0.15);
-        windFilter.frequency.setTargetAtTime(350 + speed * 9, t, 0.15);
-      }
-    },
-    ringChime() { tone(880, 0.35, 'sine', 0.22); tone(1318, 0.5, 'sine', 0.18, 0.09); },
-    touchdown() { tone(140, 0.25, 'sine', 0.3); tone(70, 0.35, 'sine', 0.25, 0.02); },
-    crash() {
-      if (!ctx || muted) return;
-      const t0 = ctx.currentTime;
-      const len = ctx.sampleRate * 0.6;
-      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-      const d = buf.getChannelData(0);
-      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
-      const src = ctx.createBufferSource(); src.buffer = buf;
-      const g = ctx.createGain(); g.gain.value = 0.5;
-      src.connect(g); g.connect(ctx.destination); src.start(t0);
-      tone(60, 0.7, 'sine', 0.35);
-    },
-    winFanfare() { [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.5, 'triangle', 0.2, i * 0.12)); },
-    toggleMute() { muted = !muted; return muted; },
-  };
+  update(phys) {
+    if (!this.ctx || this.muted) return;
+    const t = this.ctx.currentTime;
+    const rpm = 55 + phys.throttle * 95 + phys.speed * 0.55;
+    if (this.engineOsc) {
+      this.engineOsc.frequency.setTargetAtTime(rpm, t, 0.08);
+      if (this.engineOsc2) this.engineOsc2.frequency.setTargetAtTime(rpm * 1.02, t, 0.08);
+    }
+    if (this.engineGain) {
+      const g = phys.onGround && phys.throttle < 0.05 ? 0 : 0.045 + phys.throttle * 0.05;
+      this.engineGain.gain.setTargetAtTime(g, t, 0.1);
+    }
+    if (this.windGain) {
+      const w = Math.min(0.12, (phys.speed / 70) * 0.12);
+      this.windGain.gain.setTargetAtTime(phys.airborne ? w : 0, t, 0.15);
+    }
+    if (this.windFilter) {
+      this.windFilter.frequency.setTargetAtTime(400 + phys.speed * 14, t, 0.1);
+    }
+  }
+
+  toggleMute() {
+    this.muted = !this.muted;
+    if (this.engineGain && this.ctx) {
+      this.engineGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+    }
+    if (this.windGain && this.ctx) {
+      this.windGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+    }
+    return this.muted;
+  }
+
+  blip(freq, dur, type, gain) {
+    if (!this.ctx || this.muted) return;
+    try {
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = type || 'sine';
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(gain || 0.16, this.ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+      o.connect(g); g.connect(this.ctx.destination);
+      o.start(); o.stop(this.ctx.currentTime + dur);
+    } catch (e) { /* sound must never break the game */ }
+  }
+
+  ring() {
+    this.blip(880, 0.35, 'sine', 0.2);
+    setTimeout(() => this.blip(1318, 0.5, 'sine', 0.18), 90);
+  }
+
+  land() {
+    this.blip(140, 0.25, 'triangle', 0.25);
+    setTimeout(() => this.blip(660, 0.3, 'sine', 0.14), 120);
+  }
+
+  crash() {
+    this.blip(55, 0.7, 'sawtooth', 0.3);
+    this.blip(38, 0.9, 'triangle', 0.3);
+  }
 }

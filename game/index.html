@@ -1,78 +1,68 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Golden Hour: Twelve Rings — Archipelago Flight</title>
-<link rel="stylesheet" href="./style.css">
+<title>Golden Hour: Twelve Rings — Kestrel Flight</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<canvas id="scene" aria-label="Golden Hour Twelve Rings: fly the Kestrel through twelve numbered rings over a sunset archipelago, then land on the runway"></canvas>
+<div id="app">
+  <canvas id="scene"></canvas>
 
-<!-- Flight HUD: altitude, speed, heading, fuel, rings, score, timer -->
-<div id="hud" class="hidden">
-  <div id="hud-top">
-    <div class="hud-box" id="hud-mode">RING COURSE</div>
-    <div class="hud-box" id="hud-message">FLY THROUGH RING 1</div>
-    <div class="hud-box" id="hud-timer">TIME 00:00</div>
-  </div>
-  <div id="hud-left">
-    <div class="gauge"><label>ALTITUDE</label><div class="big" id="hud-alt">0</div><span>m</span></div>
-    <div class="gauge"><label>SPEED</label><div class="big" id="hud-speed">0</div><span>kt</span></div>
-    <div class="gauge"><label>HEADING</label><div class="big" id="hud-heading">090&deg;</div><span id="hud-compass">E</span></div>
-  </div>
-  <div id="hud-right">
-    <div class="gauge"><label>RINGS</label><div class="big" id="hud-rings">0 / 12</div><span id="hud-next-ring">NEXT: 1</span></div>
-    <div class="gauge"><label>SCORE</label><div class="big" id="hud-score">0</div><span>pts</span></div>
-    <div class="gauge"><label>FUEL</label><div class="fuel-track"><div id="hud-fuel-bar"></div></div><span id="hud-fuel">100%</span></div>
-    <div class="gauge"><label>THROTTLE</label><div class="fuel-track"><div id="hud-throttle-bar"></div></div><span id="hud-throttle">0%</span></div>
-  </div>
-  <div id="hud-bottom">
-    <canvas id="horizon" width="180" height="180" aria-label="Artificial horizon"></canvas>
-    <div id="hud-help">W/S throttle &middot; &uarr;/&darr; pitch &middot; &larr;/&rarr; roll &middot; A/D rudder &middot; C camera &middot; P pause &middot; R restart</div>
-    <div id="hud-centre"></div>
-  </div>
-</div>
-
-<!-- Title screen -->
-<div id="title-screen" class="overlay">
-  <div class="panel">
-    <div class="kicker">SUNSET ARCHIPELAGO &middot; FLIGHT SERIES 01</div>
-    <h1>GOLDEN HOUR<br><span>TWELVE RINGS</span></h1>
-    <p class="tagline">Fly the Kestrel through all twelve numbered rings over the islands,
-      mind your fuel, and bring her home to the runway before sunset ends.</p>
-    <div class="modes">
-      <button class="mode-btn" data-mode="course" data-label="RING COURSE">1 &middot; RING COURSE<br><small>12 rings in order, then land &middot; fuel matters</small></button>
-      <button class="mode-btn" data-mode="trial" data-label="TIME TRIAL">2 &middot; TIME TRIAL<br><small>Same 12 rings, 4:00 on the clock, lean fuel</small></button>
-      <button class="mode-btn" data-mode="landing" data-label="LANDING CHALLENGE">3 &middot; LANDING CHALLENGE<br><small>Three approaches &middot; judged on touchdown</small></button>
+  <!-- Flight HUD: dark plates, light text, legible when shrunk -->
+  <div id="hud" class="hidden">
+    <div id="hud-left" class="plate">
+      <div class="hud-row"><span class="hud-label">ALT</span><span id="hud-alt" class="hud-big">0</span><span class="hud-unit">ft</span></div>
+      <div class="hud-row"><span class="hud-label">SPD</span><span id="hud-spd" class="hud-big">0</span><span class="hud-unit">kt</span></div>
+      <div class="hud-row"><span class="hud-label">HDG</span><span id="hud-hdg" class="hud-big">090&deg;</span></div>
+      <div class="hud-row"><span class="hud-label">V/S</span><span id="hud-vs" class="hud-big">+0</span><span class="hud-unit">fpm</span></div>
     </div>
-    <p class="controls">W/S throttle &nbsp;&middot;&nbsp; Arrow keys pitch &amp; roll &nbsp;&middot;&nbsp; A/D rudder &nbsp;&middot;&nbsp; C camera &nbsp;&middot; Click a mode or press 1, 2 or 3 to fly</p>
-    <p class="credit">An original game &middot; WebAudio engine, no downloads, no network</p>
+    <div id="hud-right" class="plate">
+      <div class="hud-row"><span class="hud-label">FUEL</span><span id="hud-fuel" class="hud-big">100</span><span class="hud-unit">%</span></div>
+      <div class="hud-row"><span class="hud-label">THR</span><span id="hud-thr" class="hud-big">0</span><span class="hud-unit">%</span></div>
+      <div class="hud-row"><span class="hud-label">TIME</span><span id="hud-time" class="hud-big">00:00</span></div>
+      <div class="hud-row"><span class="hud-label">SCORE</span><span id="hud-score" class="hud-big">0</span></div>
+    </div>
+    <div id="hud-center" class="plate">
+      <div id="hud-mode">RING COURSE</div>
+      <div id="hud-ring">RING <span id="hud-ring-num">1</span> / 12</div>
+      <div id="hud-next">NEXT RING <span id="hud-next-dist">0</span> m</div>
+    </div>
+    <div id="hud-toast"></div>
+    <div id="hud-rotate" class="hidden">&#9650; PULL UP &mdash; ROTATE &#9650;</div>
+    <div id="hud-warn" class="hidden">STALL — NOSE DOWN, THROTTLE UP</div>
+    <canvas id="cluster" width="640" height="150"></canvas>
+  </div>
+
+  <!-- Menu overlay (never used as a screenshot) -->
+  <div id="menu">
+    <div id="menu-card">
+      <h1>GOLDEN HOUR</h1>
+      <h2>Twelve Rings &middot; Kestrel Flight</h2>
+      <p class="menu-sub">Fly the Kestrel through twelve numbered rings over a sunset
+      archipelago, mind your fuel, and bring her home to the runway.</p>
+      <div class="menu-modes">
+        <button class="mode-btn" data-mode="ring">1 &middot; RING COURSE<br><span>12 rings, then land</span></button>
+        <button class="mode-btn" data-mode="time">2 &middot; TIME TRIAL<br><span>12 rings against the clock</span></button>
+        <button class="mode-btn" data-mode="landing">3 &middot; LANDING CHALLENGE<br><span>3 approaches, judged on touchdown</span></button>
+      </div>
+      <p class="menu-keys">W/S throttle &middot; &uarr;/&darr; pitch &middot; &larr;/&rarr; roll &middot;
+      A/D rudder &middot; C camera &middot; M sound &middot; R restart</p>
+      <p class="menu-note">Click a mode or press 1, 2 or 3 to fly. No network, no account, no download.</p>
+    </div>
+  </div>
+
+  <div id="endcard" class="hidden">
+    <div id="endcard-card">
+      <h1 id="end-title">COURSE COMPLETE</h1>
+      <p id="end-lines"></p>
+      <button id="end-again">FLY AGAIN (R)</button>
+    </div>
   </div>
 </div>
-
-<!-- End screen -->
-<div id="end-screen" class="overlay hidden">
-  <div class="panel">
-    <div class="kicker" id="end-kicker">SORTIE COMPLETE</div>
-    <h1 id="end-title">WHEELS DOWN</h1>
-    <p class="tagline" id="end-detail"></p>
-    <div id="end-stats"></div>
-    <button id="end-fly-again" class="mode-btn wide">FLY AGAIN &nbsp;(R)</button>
-    <button id="end-menu" class="mode-btn wide ghost">BACK TO MENU &nbsp;(M)</button>
-  </div>
-</div>
-
-<!-- Pause screen -->
-<div id="pause-screen" class="overlay hidden">
-  <div class="panel small">
-    <h1>PAUSED</h1>
-    <p class="tagline">Press P to keep flying, or R to restart the sortie.</p>
-  </div>
-</div>
-
-<p id="status" role="status" aria-live="polite"></p>
-<script src="./vendor/three.min.js"></script>
-<script type="module" src="./src/main.js"></script>
+<script src="vendor/three.min.js"></script>
+<script type="module" src="src/main.js"></script>
 </body>
 </html>

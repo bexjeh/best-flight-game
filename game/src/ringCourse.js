@@ -1,90 +1,124 @@
-// ringCourse.js — the twelve numbered rings: positions, glowing torus meshes with
-// number sprites, and the fly-through test. Rings must be taken in order.
-export const RING_COUNT = 12;
+// ringCourse.js — the twelve numbered rings: a loop out from the runway,
+// around the palm island, past the volcano, by the lighthouse, and home.
+// A ring is a golden torus with a big number disc above it. Passing through
+// the plane of the ring inside its radius clears it; the next ring pulses
+// gold and the cleared ones turn green.
+import THREE from './threeShim.js';
 
-// A loop around the archipelago: out over the sea, around the tall peak, home.
-const RING_DEFS = [
-  { x: 120,  z: -60,  y: 55 },
-  { x: 420,  z: -300, y: 80 },
-  { x: 620,  z: -420, y: 110 },   // over the north-east island
-  { x: 420,  z: -820, y: 90 },
-  { x: -120, z: -880, y: 120 },
-  { x: -480, z: -900, y: 100 },
-  { x: -720, z: 480,  y: 130 },
-  { x: -220, z: 860,  y: 150 },   // high pass by the tall peak
-  { x: 200,  z: 700,  y: 95 },
-  { x: 760,  z: 420,  y: 110 },
-  { x: 1020, z: -60,  y: 85 },    // by the lighthouse
-  { x: 420,  z: 60,   y: 60 },    // final approach, lined up with the runway
+export const RING_DEFS = [
+  { x: 350, y: 70, z: 720 },
+  { x: 800, y: 110, z: 500 },
+  { x: 950, y: 150, z: 0 },
+  { x: 700, y: 170, z: -550 },
+  { x: 150, y: 140, z: -750 },
+  { x: -450, y: 120, z: -650 },
+  { x: -750, y: 90, z: -300 },
+  { x: -600, y: 80, z: 250 },
+  { x: -450, y: 60, z: 650 },
+  { x: 0, y: 70, z: 860 },
+  { x: 450, y: 90, z: 800 },
+  { x: 250, y: 60, z: 720 },
 ];
-export const RING_RADIUS = 15;
 
-export function buildRings(scene) {
-  const THREE = window.THREE;
-  const rings = RING_DEFS.map((def, i) => {
-    const group = new THREE.Group();
-    const mat = new THREE.MeshBasicMaterial({ color: 0x9fc4ff, transparent: true, opacity: 0.9 });
-    const torus = new THREE.Mesh(new THREE.TorusGeometry(RING_RADIUS, 1.3, 12, 40), mat);
-    group.add(torus);
-    // Number plate above the ring, drawn on a canvas texture.
-    const label = makeNumberSprite(i + 1);
-    label.position.set(0, RING_RADIUS + 9, 0);
-    group.add(label);
-    group.position.set(def.x, def.y, def.z);
-    // Face the ring toward the previous ring so the pilot flies through it.
-    const prev = RING_DEFS[(i + RING_DEFS.length - 1) % RING_DEFS.length];
-    group.lookAt(prev.x, prev.y, prev.z);
-    group.rotation.z = 0;
-    scene.add(group);
-    return { def, group, torus, mat, label, collected: false, index: i };
-  });
-  return rings;
-}
+export const RING_RADIUS = 16;
 
-function makeNumberSprite(number) {
-  const THREE = window.THREE;
-  const canvas = document.createElement('canvas');
-  canvas.width = 128; canvas.height = 128;
-  const ctx = canvas.getContext('2d');
+function numberTexture(n) {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const ctx = c.getContext('2d');
   ctx.beginPath(); ctx.arc(64, 64, 58, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(20, 8, 40, 0.82)'; ctx.fill();
-  ctx.lineWidth = 7; ctx.strokeStyle = '#ffd27a'; ctx.stroke();
-  ctx.fillStyle = '#ffd27a'; ctx.font = 'bold 68px Verdana, sans-serif';
+  ctx.fillStyle = 'rgba(10, 12, 22, 0.85)'; ctx.fill();
+  ctx.lineWidth = 6; ctx.strokeStyle = '#ffb85a'; ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 64px sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(String(number), 64, 68);
-  const tex = new THREE.CanvasTexture(canvas);
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: true }));
-  sprite.scale.set(16, 16, 1);
-  return sprite;
+  ctx.fillText(String(n), 64, 68);
+  const tex = new THREE.CanvasTexture(c);
+  return tex;
 }
 
-// Colour the next ring gold and pulsing, later rings cool blue, collected ones green.
-export function paintRings(rings, nextIndex, time) {
-  rings.forEach((ring) => {
-    if (ring.collected) { ring.mat.color.setHex(0x37d67a); ring.mat.opacity = 0.45; }
-    else if (ring.index === nextIndex) {
-      ring.mat.color.setHex(0xffb020);
-      ring.mat.opacity = 0.75 + Math.sin(time * 5) * 0.25;
-      const s = 1 + Math.sin(time * 5) * 0.04;
-      ring.group.scale.set(s, s, s);
-    } else {
-      ring.mat.color.setHex(0x9fc4ff); ring.mat.opacity = 0.75;
-      ring.group.scale.set(1, 1, 1);
+export class RingCourse {
+  constructor(scene) {
+    this.scene = scene;
+    this.rings = [];
+    this.cleared = 0;
+    this.group = new THREE.Group();
+    scene.add(this.group);
+    RING_DEFS.forEach((def, i) => {
+      const next = RING_DEFS[(i + 1) % RING_DEFS.length];
+      const normal = new THREE.Vector3(next.x - def.x, next.y - def.y, next.z - def.z).normalize();
+      const ring = new THREE.Group();
+      const torus = new THREE.Mesh(
+        new THREE.TorusGeometry(RING_RADIUS, 1.3, 12, 40),
+        new THREE.MeshStandardMaterial({ color: 0xffb52e, emissive: 0xa86a00, emissiveIntensity: 0.9, roughness: 0.4 })
+      );
+      torus.lookAt(normal);
+      ring.add(torus);
+      const label = new THREE.Mesh(
+        new THREE.PlaneGeometry(22, 22),
+        new THREE.MeshBasicMaterial({ map: numberTexture(i + 1), transparent: true, side: THREE.DoubleSide })
+      );
+      label.position.y = RING_RADIUS + 15;
+      ring.add(label);
+      ring.position.set(def.x, def.y, def.z);
+      this.group.add(ring);
+      this.rings.push({
+        index: i, pos: new THREE.Vector3(def.x, def.y, def.z), normal,
+        group: ring, torus, label, cleared: false,
+      });
+    });
+  }
+
+  reset() {
+    this.cleared = 0;
+    this.group.visible = true;
+    for (const r of this.rings) {
+      r.cleared = false;
+      r.torus.material.color.setHex(0xffb52e);
+      r.torus.material.emissive.setHex(0xa86a00);
+      r.group.visible = true;
     }
-  });
-}
+  }
 
-// True when the plane's nose passes through the ring's disc, in order.
-export function checkRingPass(ring, state) {
-  if (!ring || ring.collected) return false;
-  const dx = state.x - ring.def.x, dy = state.y - ring.def.y, dz = state.z - ring.def.z;
-  const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-  if (dist > RING_RADIUS * 0.85) return false;
-  // Must be travelling roughly toward the ring's facing, not clipping its edge.
-  ring.collected = true;
-  return true;
-}
+  setRingsVisible(v) { this.group.visible = v; }
 
-export function nextRing(rings) {
-  return rings.find((r) => !r.collected) || null;
+  get nextRing() { return this.cleared < this.rings.length ? this.rings[this.cleared] : null; }
+  get total() { return this.rings.length; }
+  get done() { return this.cleared >= this.rings.length; }
+
+  distanceToNext(pos) {
+    const n = this.nextRing;
+    return n ? n.pos.distanceTo(pos) : 0;
+  }
+
+  // Call every frame with the previous and current aircraft positions.
+  // Returns the ring just cleared, or null.
+  checkPass(prevPos, pos) {
+    const n = this.nextRing;
+    if (!n) return null;
+    const toPrev = prevPos.clone().sub(n.pos);
+    const toNow = pos.clone().sub(n.pos);
+    const crossed = Math.sign(toPrev.dot(n.normal)) !== Math.sign(toNow.dot(n.normal));
+    const close = pos.distanceTo(n.pos) < RING_RADIUS - 2;
+    if ((crossed && pos.distanceTo(n.pos) < RING_RADIUS + 6) || close) {
+      n.cleared = true;
+      n.torus.material.color.setHex(0x2aff5a);
+      n.torus.material.emissive.setHex(0x0a7a20);
+      this.cleared++;
+      return n;
+    }
+    return null;
+  }
+
+  update(t) {
+    // Pulse the next ring so the eye always knows where to go.
+    this.rings.forEach((r, i) => {
+      if (r.cleared) return;
+      const isNext = i === this.cleared;
+      const s = isNext ? 1 + 0.06 * Math.sin(t * 4) : 1;
+      r.torus.scale.setScalar(s);
+      r.label.lookAt(this.scene.userData.cameraPos || r.label.position);
+      r.torus.material.emissiveIntensity = isNext ? 1.1 + 0.5 * Math.sin(t * 4) : 0.55;
+    });
+  }
 }

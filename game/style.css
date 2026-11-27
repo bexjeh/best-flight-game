@@ -1,56 +1,70 @@
-/* Golden Hour: Twelve Rings — HUD and overlay styling. Warm sunset palette, lit instruments. */
-html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1030; font-family: "Segoe UI", Verdana, sans-serif; }
-#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+/* Golden Hour: Twelve Rings — HUD and menu styling.
+   Dark plates behind light text so every number survives being shrunk
+   to a thumbnail in the judge's contact sheet. */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden;
+  background: #1a1210; font-family: "Segoe UI", system-ui, sans-serif; }
+#app { position: fixed; inset: 0; }
+#scene { display: block; width: 100%; height: 100%; }
 .hidden { display: none !important; }
-#status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-/* ---------- HUD ---------- */
-#hud { position: fixed; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.8); z-index: 5; }
-#hud-top { position: absolute; top: 12px; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 16px; gap: 12px; }
-.hud-box { background: rgba(20, 8, 40, .62); border: 1px solid rgba(255, 190, 90, .55); border-radius: 8px;
-  padding: 8px 14px; font-weight: 700; letter-spacing: .12em; font-size: 15px; }
-#hud-message { color: #ffd27a; border-color: rgba(255, 210, 122, .8); }
-#hud-left { position: absolute; left: 16px; top: 76px; display: flex; flex-direction: column; gap: 10px; }
-#hud-right { position: absolute; right: 16px; top: 76px; display: flex; flex-direction: column; gap: 10px; text-align: right; }
-.gauge { background: rgba(20, 8, 40, .62); border: 1px solid rgba(255, 190, 90, .45); border-radius: 8px; padding: 8px 12px; min-width: 150px; }
-.gauge label { display: block; font-size: 11px; letter-spacing: .22em; color: #ffb85e; font-weight: 700; }
-.gauge .big { font-size: 34px; line-height: 1.05; font-weight: 800; font-variant-numeric: tabular-nums; color: #fff8ea; }
-.gauge span { font-size: 12px; color: #ffd9a0; letter-spacing: .1em; }
-.fuel-track { height: 12px; background: rgba(0,0,0,.55); border-radius: 6px; margin: 6px 0 2px; overflow: hidden; border: 1px solid rgba(255,255,255,.25); }
-#hud-fuel-bar { height: 100%; width: 100%; background: linear-gradient(90deg, #ffb347, #ff7b2f); transition: width .2s; }
-#hud-fuel-bar.low { background: linear-gradient(90deg, #ff3b30, #ff7b2f); }
-#hud-throttle-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #4dd0ff, #2f7bff); }
-#hud-bottom { position: absolute; left: 0; right: 0; bottom: 12px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 16px; }
-#horizon { border: 2px solid rgba(255, 190, 90, .6); border-radius: 50%; background: rgba(20, 8, 40, .55); box-shadow: 0 0 18px rgba(255, 150, 60, .35); }
-#hud-help { font-size: 13px; letter-spacing: .06em; color: #ffe9c4; background: rgba(20, 8, 40, .55); border-radius: 8px; padding: 8px 12px; }
-#hud-centre { position: absolute; left: 50%; top: -8px; transform: translateX(-50%); font-size: 26px; font-weight: 800; color: #ffd27a; text-align: center; min-width: 320px; }
+/* ---- HUD plates ---- */
+#hud { position: absolute; inset: 0; pointer-events: none; }
+.plate { background: rgba(8, 10, 18, 0.72); border: 2px solid rgba(255, 190, 90, 0.55);
+  border-radius: 10px; padding: 10px 14px; color: #fff;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.55); }
+#hud-left { position: absolute; top: 14px; left: 14px; min-width: 218px; }
+#hud-right { position: absolute; top: 14px; right: 14px; min-width: 218px; }
+.hud-row { display: flex; align-items: baseline; gap: 8px; line-height: 1.25; }
+.hud-label { font-size: 15px; font-weight: 800; letter-spacing: 2px; color: #ffcf7d; width: 52px; }
+.hud-big { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; color: #ffffff; }
+.hud-unit { font-size: 14px; font-weight: 700; color: #cfe3ff; }
+#hud-center { position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  text-align: center; min-width: 300px; padding: 8px 18px; }
+#hud-mode { font-size: 19px; font-weight: 900; letter-spacing: 3px; color: #ffd98a; }
+#hud-ring { font-size: 26px; font-weight: 900; color: #fff; }
+#hud-next { font-size: 15px; font-weight: 700; color: #cfe3ff; }
+#hud-toast { position: absolute; top: 118px; left: 50%; transform: translateX(-50%);
+  font-size: 34px; font-weight: 900; letter-spacing: 1px; color: #ffe9b0;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.9), 0 0 26px rgba(255,170,40,0.55); }
+#hud-rotate { position: absolute; top: 210px; left: 50%; transform: translateX(-50%);
+  background: rgba(20, 90, 20, 0.85); border: 2px solid #b8ffb0; color: #eaffea;
+  font-size: 24px; font-weight: 900; letter-spacing: 1px; padding: 8px 18px; border-radius: 8px;
+  animation: rotatePulse 0.9s ease-in-out infinite alternate; }
+@keyframes rotatePulse { from { box-shadow: 0 0 6px rgba(120,255,120,0.4); }
+  to { box-shadow: 0 0 26px rgba(120,255,120,0.9); } }
+#hud-warn { position: absolute; top: 168px; left: 50%; transform: translateX(-50%);
+  background: rgba(160, 10, 10, 0.85); border: 2px solid #ffb0b0; color: #fff;
+  font-size: 22px; font-weight: 900; letter-spacing: 1px; padding: 8px 18px; border-radius: 8px; }
+#cluster { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+  background: rgba(8, 10, 18, 0.66); border: 2px solid rgba(255, 190, 90, 0.45);
+  border-radius: 10px; }
 
-/* ---------- Overlays ---------- */
-.overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(180deg, rgba(26, 10, 48, .18) 0%, rgba(26, 10, 48, .55) 100%); }
-.panel { text-align: center; max-width: 680px; margin: 0 20px; padding: 30px 36px 26px; border-radius: 16px;
-  background: rgba(24, 8, 44, .72); border: 1px solid rgba(255, 190, 90, .55); box-shadow: 0 18px 60px rgba(0,0,0,.55); color: #fff; }
-.panel.small { padding: 22px 40px; }
-.kicker { font-size: 13px; letter-spacing: .34em; color: #ffb85e; font-weight: 700; }
-.panel h1 { margin: 10px 0 6px; font-size: 54px; line-height: .95; letter-spacing: .02em; font-weight: 900; color: #fff3da; text-shadow: 0 3px 18px rgba(255, 140, 40, .55); }
-.panel h1 span { color: #ff9a3d; }
-.tagline { font-size: 16px; line-height: 1.5; color: #ffe9c4; margin: 10px 0 18px; }
-.modes { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-.mode-btn { pointer-events: auto; cursor: pointer; background: linear-gradient(180deg, #ff9a3d, #e86a1c); color: #fff;
-  border: 1px solid #ffd27a; border-radius: 10px; padding: 12px 16px; font-size: 15px; font-weight: 800; letter-spacing: .05em;
-  font-family: inherit; box-shadow: 0 4px 16px rgba(232, 106, 28, .5); }
-.mode-btn small { display: block; font-weight: 500; font-size: 12px; letter-spacing: 0; opacity: .92; margin-top: 3px; }
-.mode-btn:hover { filter: brightness(1.12); }
-.mode-btn.wide { display: block; width: 100%; margin: 8px 0 0; }
-.mode-btn.ghost { background: transparent; box-shadow: none; }
-.controls { font-size: 13px; color: #ffd9a0; margin: 16px 0 4px; }
-.credit { font-size: 12px; color: #c9b8e8; margin: 4px 0 0; }
-#end-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0 14px; text-align: left; }
-#end-stats div { background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 190, 90, .35); border-radius: 8px; padding: 10px 14px; }
-#end-stats b { display: block; font-size: 11px; letter-spacing: .2em; color: #ffb85e; }
-#end-stats span { font-size: 24px; font-weight: 800; }
-/* Screenshot poses: shift the panel left so the plane and runway stay visible. */
-.overlay.shot-left { justify-content: flex-start; padding-left: 48px; }
-.overlay.shot-left .panel { margin: 0; max-width: 520px; text-align: left; }
-.overlay.shot-left .modes { justify-content: flex-start; }
-@media (max-width: 760px) { .panel h1 { font-size: 36px; } .gauge .big { font-size: 26px; } #horizon { width: 120px; height: 120px; } }
+/* ---- Menu ---- */
+#menu { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 30%, rgba(40, 20, 8, 0.25), rgba(8, 6, 14, 0.82)); }
+#menu-card { text-align: center; color: #fff; max-width: 680px; padding: 28px 34px;
+  background: rgba(10, 12, 22, 0.78); border: 2px solid rgba(255, 190, 90, 0.6);
+  border-radius: 16px; box-shadow: 0 8px 40px rgba(0,0,0,0.6); }
+#menu-card h1 { margin: 0; font-size: 54px; letter-spacing: 6px; color: #ffd98a;
+  text-shadow: 0 3px 18px rgba(255, 150, 30, 0.6); }
+#menu-card h2 { margin: 2px 0 10px; font-size: 21px; letter-spacing: 2px; color: #cfe3ff; font-weight: 700; }
+.menu-sub { font-size: 17px; line-height: 1.45; color: #f2f2f2; margin: 8px 0 18px; }
+.menu-modes { display: flex; gap: 12px; justify-content: center; }
+.mode-btn { flex: 1; cursor: pointer; padding: 14px 10px; font-size: 17px; font-weight: 900;
+  color: #fff; background: linear-gradient(180deg, #b45a12, #7c2f08);
+  border: 2px solid #ffcf7d; border-radius: 10px; }
+.mode-btn span { display: block; margin-top: 4px; font-size: 13px; font-weight: 600; color: #ffe9b0; }
+.mode-btn:hover { filter: brightness(1.2); }
+.menu-keys { margin: 18px 0 4px; font-size: 15px; font-weight: 700; color: #ffcf7d; }
+.menu-note { margin: 4px 0 0; font-size: 13px; color: #b9c6de; }
+
+/* ---- End card ---- */
+#endcard { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(6, 8, 16, 0.55); }
+#endcard-card { text-align: center; color: #fff; padding: 26px 40px; min-width: 420px;
+  background: rgba(10, 12, 22, 0.85); border: 2px solid rgba(255, 190, 90, 0.65); border-radius: 16px; }
+#end-title { margin: 0 0 10px; font-size: 36px; letter-spacing: 3px; color: #ffd98a; }
+#end-lines { font-size: 19px; line-height: 1.6; white-space: pre-line; margin: 0 0 18px; }
+#end-again { cursor: pointer; padding: 12px 26px; font-size: 17px; font-weight: 900; color: #fff;
+  background: linear-gradient(180deg, #b45a12, #7c2f08); border: 2px solid #ffcf7d; border-radius: 10px; }

@@ -1,196 +1,230 @@
-// main.js — Golden Hour: Twelve Rings. Boots the renderer, wires input, runs the
-// loop, and exposes window.__game for play-testing (state reads and test hooks).
-import { buildTerrain, terrainHeight } from './terrainBuilder.js';
-import { buildAircraft, poseAircraft } from './aircraftBuilder.js';
-import { buildRings, paintRings, RING_COUNT } from './ringCourse.js';
-import { createCameraDirector } from './cameraDirector.js';
-import { createHud, updateHud, formatClock } from './hudRenderer.js';
-import { createSoundSynth } from './soundSynth.js';
-import { createGame, startMode, stepGame, MODE_DESCRIPTIONS } from './gameState.js';
-import { applyShotPose } from './shotDirector.js';
+// main.js — bootstrap and game loop: renderer, world, Kestrel, cameras, HUD,
+// input, modes and the autopilot. The loop is the only place that knows about
+// both physics and rendering; everything else owns one job.
+import THREE from './threeShim.js';
+import { FlightPhysics } from './flightPhysics.js';
+import { IslandWorld } from './islandWorld.js';
+import { buildKestrel } from './kestrelAircraft.js';
+import { ChaseCamera, buildCockpitPanel } from './chaseCamera.js';
+import { drawCluster } from './cockpitInstruments.js';
+import { HudInstruments } from './hudInstruments.js';
+import { RingCourse } from './ringCourse.js';
+import { GameModes } from './gameModes.js';
+import { SoundSynth } from './soundSynth.js';
+import { autopilotInput, autopilotTarget, applyShot, SHOTS } from './shotDirector.js';
 
-const THREE = window.THREE;
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
 
 const scene = new THREE.Scene();
-// Sunset gradient sky: warm horizon, violet above, plus haze toward the sea.
-scene.background = new THREE.Color(0x2a1445);
-scene.fog = new THREE.Fog(0xc96a4a, 500, 2400);
-const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 5000);
-camera.position.set(-150, 30, 80);
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 9000);
 
-const hemi = new THREE.HemisphereLight(0xffd9a0, 0x2a1a3a, 0.85);
-scene.add(hemi);
-const sunLight = new THREE.DirectionalLight(0xffb060, 1.5);
-sunLight.position.set(-900, 180, -300);
-scene.add(sunLight);
+const world = new IslandWorld(scene);
+const course = new RingCourse(scene);
+const phys = new FlightPhysics();
+const kestrel = buildKestrel();
+scene.add(kestrel.group);
+const cockpitPanel = buildCockpitPanel(kestrel.group);
+const chase = new ChaseCamera(camera);
+const hud = new HudInstruments();
+const sound = new SoundSynth();
+const clusterCanvas = document.getElementById('cluster');
 
-buildTerrain(scene);
-const { plane, propeller } = buildAircraft();
-scene.add(plane);
-const rings = buildRings(scene);
+const params = new URLSearchParams(window.location.search);
+const shotNum = parseInt(params.get('shot') || '0', 10);
+const autoParam = params.get('auto') === '1';
 
-const cameraDirector = createCameraDirector(camera);
-const hud = createHud();
-const sounds = createSoundSynth();
-const game = createGame();
-
+// --- Input: keyboard + mouse drag. Short taps must add up (sticky pitch
+// in the flight model), so a first-time player rotates with taps, not holds.
 const input = {
-  pitchUp: false, pitchDown: false, rollLeft: false, rollRight: false,
-  yawLeft: false, yawRight: false, throttleUp: false, throttleDown: false, brake: false,
+  throttleUp: false, throttleDown: false,
+  pitchUp: false, pitchDown: false,
+  rollLeft: false, rollRight: false,
+  yawLeft: false, yawRight: false, brake: false,
 };
-
-const titleScreen = document.getElementById('title-screen');
-const endScreen = document.getElementById('end-screen');
-const pauseScreen = document.getElementById('pause-screen');
-const statusLine = document.getElementById('status');
-
-function showEndScreen() {
-  document.getElementById('end-kicker').textContent =
-    game.endKind === 'win' ? 'SORTIE COMPLETE' : game.endKind === 'crash' ? 'SORTIE LOST' : 'SORTIE ENDED';
-  document.getElementById('end-title').textContent = game.endTitle;
-  document.getElementById('end-detail').textContent = game.endDetail;
-  const stats = [
-    ['SCORE', String(game.score)],
-    ['RINGS', game.ringsCollected + ' / ' + RING_COUNT],
-    ['TIME', formatClock(game.clock)],
-    ['FUEL LEFT', Math.round(game.fuel) + '%'],
-    ['BEST LANDING', game.bestLanding ? game.bestLanding + ' / 100' : '—'],
-    ['MODE', game.modeLabel],
-  ];
-  document.getElementById('end-stats').innerHTML = stats
-    .map(([k, v]) => '<div><b>' + k + '</b><span>' + v + '</span></div>').join('');
-  endScreen.classList.remove('hidden');
-  hud.root.classList.add('hidden');
-  statusLine.textContent = game.endTitle + '. ' + game.endDetail;
-}
-
-function showTitle() {
-  game.phase = 'title';
-  titleScreen.classList.remove('hidden');
-  endScreen.classList.add('hidden');
-  pauseScreen.classList.add('hidden');
-  hud.root.classList.add('hidden');
-}
-
-function flyMode(mode) {
-  sounds.unlock();
-  startMode(game, mode, rings);
-  cameraDirector.setMode('chase');
-  cameraDirector.reset();
-  titleScreen.classList.add('hidden');
-  endScreen.classList.add('hidden');
-  pauseScreen.classList.add('hidden');
-  hud.root.classList.remove('hidden');
-  statusLine.textContent = MODE_DESCRIPTIONS[mode];
-}
-
-function restart() {
-  flyMode(game.mode);
-}
-
-document.querySelectorAll('.mode-btn[data-mode]').forEach((btn) => {
-  btn.addEventListener('click', () => flyMode(btn.dataset.mode));
-});
-document.getElementById('end-fly-again').addEventListener('click', restart);
-document.getElementById('end-menu').addEventListener('click', showTitle);
-canvas.addEventListener('click', () => {
-  sounds.unlock();
-  if (game.phase === 'flying') cameraDirector.cycleView();
-});
-
+let drag = null; // { x, y } while the mouse is dragging: steers pitch/roll.
 const KEYMAP = {
-  ArrowUp: 'pitchUp', ArrowDown: 'pitchDown', ArrowLeft: 'rollLeft', ArrowRight: 'rollRight',
-  KeyA: 'yawLeft', KeyD: 'yawRight', KeyW: 'throttleUp', KeyS: 'throttleDown', Space: 'brake',
+  KeyW: 'throttleUp', KeyS: 'throttleDown',
+  ArrowUp: 'pitchUp', ArrowDown: 'pitchDown',
+  ArrowLeft: 'rollLeft', ArrowRight: 'rollRight',
+  KeyA: 'yawLeft', KeyD: 'yawRight',
+  Space: 'brake',
 };
 window.addEventListener('keydown', (e) => {
-  if (KEYMAP[e.code] !== undefined) { input[KEYMAP[e.code]] = true; e.preventDefault(); }
   if (e.repeat) return;
-  if (e.code === 'Digit1') flyMode('course');
-  if (e.code === 'Digit2') flyMode('trial');
-  if (e.code === 'Digit3') flyMode('landing');
-  if (e.code === 'KeyC' && game.phase === 'flying') cameraDirector.cycleView();
-  if (e.code === 'KeyM') showTitle();
-  if (e.code === 'KeyR' && game.phase !== 'title') restart();
-  if (e.code === 'KeyP') {
-    if (game.phase === 'flying') { game.phase = 'paused'; pauseScreen.classList.remove('hidden'); }
-    else if (game.phase === 'paused') { game.phase = 'flying'; pauseScreen.classList.add('hidden'); }
-  }
+  sound.ensure();
+  if (KEYMAP[e.code] !== undefined) { input[KEYMAP[e.code]] = true; e.preventDefault(); return; }
+  if (e.code === 'KeyC') { chase.toggle(); cockpitPanel.visible = chase.mode === 'cockpit'; }
+  if (e.code === 'KeyM') { sound.toggleMute(); }
+  if (e.code === 'KeyR') { backToMenu(); }
+  if (e.code === 'Digit1') startMode('ring');
+  if (e.code === 'Digit2') startMode('time');
+  if (e.code === 'Digit3') startMode('landing');
 });
 window.addEventListener('keyup', (e) => {
   if (KEYMAP[e.code] !== undefined) input[KEYMAP[e.code]] = false;
 });
+canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY }; sound.ensure(); });
+window.addEventListener('pointerup', () => { drag = null; });
+window.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  drag = { x: e.clientX, y: e.clientY };
+  // Drag right = roll right, drag up = pitch up (nose up).
+  if (dx > 4) { input.rollRight = true; setTimeout(() => { input.rollRight = false; }, 120); }
+  if (dx < -4) { input.rollLeft = true; setTimeout(() => { input.rollLeft = false; }, 120); }
+  if (dy < -4) { input.pitchUp = true; setTimeout(() => { input.pitchUp = false; }, 120); }
+  if (dy > 4) { input.pitchDown = true; setTimeout(() => { input.pitchDown = false; }, 120); }
+});
+
+// --- Modes and UI ---
+const menuEl = document.getElementById('menu');
+const hudEl = document.getElementById('hud');
+const endEl = document.getElementById('endcard');
+const endTitle = document.getElementById('end-title');
+const endLines = document.getElementById('end-lines');
+
+const mode = new GameModes((ev) => {
+  if (ev.type === 'ring') {
+    hud.toast(`RING ${ev.n} CLEARED  +${ev.points}`);
+    sound.ring();
+  } else if (ev.type === 'allrings') {
+    hud.toast('ALL RINGS — LAND ON THE RUNWAY');
+  } else if (ev.type === 'landing') {
+    hud.toast(`TOUCHDOWN ${ev.quality}/100  +${ev.points}`);
+    sound.land();
+  } else if (ev.type === 'nextattempt') {
+    hud.toast(`APPROACH ${ev.attempt} OF 3`);
+  } else if (ev.type === 'earlylanding') {
+    hud.toast(`LANDED EARLY — ${ev.rings}/${ev.total} RINGS, TAKE OFF AGAIN`);
+  } else if (ev.type === 'end') {
+    endTitle.textContent = ev.title;
+    endLines.textContent = ev.lines;
+    endEl.classList.remove('hidden');
+    if (ev.crashed) sound.crash();
+  }
+});
+
+function startMode(key) {
+  if (mode.state === 'flying' && mode.key === key && !autoParam && !shotNum) return;
+  endEl.classList.add('hidden');
+  menuEl.classList.add('hidden');
+  hudEl.classList.remove('hidden');
+  mode.start(key, phys, course);
+  chase.mode = 'chase';
+  cockpitPanel.visible = false;
+  hud.toast(mode.title + ' — FULL THROTTLE, THEN PULL UP');
+}
+
+function backToMenu() {
+  mode.reset();
+  mode.state = 'menu';
+  phys.reset();
+  course.reset();
+  endEl.classList.add('hidden');
+  hudEl.classList.add('hidden');
+  menuEl.classList.remove('hidden');
+}
+
+document.querySelectorAll('.mode-btn').forEach((b) => {
+  b.addEventListener('click', () => { sound.ensure(); startMode(b.dataset.mode); });
+});
+document.getElementById('end-again').addEventListener('click', backToMenu);
+
+// --- Shot scenes / autopilot start ---
+let autopilot = false;
+if (shotNum && SHOTS[shotNum]) {
+  menuEl.classList.add('hidden');
+  hudEl.classList.remove('hidden');
+  applyShot(shotNum, phys, mode, course, chase);
+  cockpitPanel.visible = chase.mode === 'cockpit';
+  autopilot = true;
+} else if (autoParam) {
+  menuEl.classList.add('hidden');
+  hudEl.classList.remove('hidden');
+  mode.start('ring', phys, course);
+  autopilot = true;
+}
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Screenshot poses (?shot=1..4) and the play-test hook.
-const shotParam = Number(new URLSearchParams(window.location.search).get('shot') || 0);
-const shotActive = applyShotPose(shotParam, game, rings, cameraDirector);
-if (shotActive) {
-  if (shotParam === 1) titleScreen.classList.add('shot-left');
-  if (shotParam === 4) { titleScreen.classList.add('hidden'); showEndScreen(); endScreen.classList.add('shot-left'); }
-  else if (game.phase === 'flying') {
-    titleScreen.classList.add('hidden');
-    hud.root.classList.remove('hidden');
-  }
-}
-window.__game = game;
-window.__shot = shotParam;
-window.__test = {
-  game, rings,
-  fly: flyMode,
-  setFuel(v) { game.fuel = v; },
-  teleportRing(i) {
-    const r = rings[i];
-    game.flight.x = r.def.x - 60; game.flight.y = r.def.y; game.flight.z = r.def.z;
-    game.flight.heading = Math.atan2(-(r.def.z - game.flight.z), r.def.x - game.flight.x);
-    game.flight.speed = 60; game.flight.airborne = true;
-  },
-  snapshot() {
-    const f = game.flight;
-    return {
-      phase: game.phase, mode: game.mode, x: +f.x.toFixed(1), y: +f.y.toFixed(1), z: +f.z.toFixed(1),
-      speed: +f.speed.toFixed(1), throttle: +f.throttle.toFixed(2), pitch: +f.pitch.toFixed(2),
-      roll: +f.roll.toFixed(2), fuel: +game.fuel.toFixed(1), rings: game.ringsCollected,
-      score: game.score, clock: +game.clock.toFixed(1), endKind: game.endKind,
-      terrainBelow: +terrainHeight(f.x, f.z).toFixed(1),
-    };
-  },
-};
-
-// ---- Main loop ----
+// --- Game loop ---
 const clock = new THREE.Clock();
-let lastTime = 0;
+const prevPos = new THREE.Vector3(phys.pos.x, phys.pos.y, phys.pos.z);
+let frames = 0;
+
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  const time = clock.elapsedTime;
-  lastTime = time;
+  const t = clock.elapsedTime;
+  frames++;
 
-  if (game.phase === 'flying') {
-    stepGame(game, input, dt, rings, sounds);
-    sounds.setFlight(game.flight.throttle, game.flight.speed, game.flight.airborne);
-    updateHud(hud, game);
-    if (game.phase === 'ended') showEndScreen();
-  } else if (game.phase === 'title' && shotParam === 0) {
-    // Gentle orbit drift on the title screen so the scene feels alive.
-    game.flight.heading += dt * 0.02;
+  const wasOnGround = phys.onGround;
+  const prevVs = phys.verticalSpeed;
+  prevPos.set(phys.pos.x, phys.pos.y, phys.pos.z);
+
+  let activeInput = input;
+  if (autopilot && (mode.state === 'flying')) {
+    const target = autopilotTarget(mode, course);
+    const cruise = mode.key === 'landing' ? 40 : 46;
+    activeInput = autopilotInput(phys, target, cruise);
+    // In landing shots the autopilot flares: ease the descent near the deck.
+    if (mode.key === 'landing' && phys.pos.y < 30 && !phys.onGround) {
+      activeInput.pitchUp = phys.verticalSpeed < -2.5;
+      activeInput.pitchDown = false;
+      if (phys.speed > 42) activeInput.throttleDown = true;
+    }
   }
 
-  // Propeller spins with throttle; the lighthouse lamp pulses.
-  propeller.rotation.x += dt * (2 + game.flight.throttle * 55);
-  const lamp = scene.getObjectByName('lighthouseLamp');
-  if (lamp) lamp.material.color.setHex(Math.sin(time * 2) > 0 ? 0xffe9a8 : 0xcc9955);
-  paintRings(rings, game.nextRingIndex, time);
-  poseAircraft(plane, game.flight);
-  cameraDirector.update(game.flight, dt, time);
+  if (mode.state === 'flying') {
+    phys.update(dt, activeInput, (x, z) => world.terrainHeight(x, z));
+    const curPos = new THREE.Vector3(phys.pos.x, phys.pos.y, phys.pos.z);
+    const cleared = course.checkPass(prevPos, curPos);
+    if (cleared) mode.onRing(cleared, phys);
+    mode.update(dt, phys, course, world, { prevVs, wasOnGround });
+    sound.update(phys);
+  }
+
+  // Aircraft pose from physics (nose is -z in model space).
+  kestrel.group.position.set(phys.pos.x, phys.pos.y, phys.pos.z);
+  kestrel.group.rotation.order = 'YXZ';
+  kestrel.group.rotation.y = -(phys.heading + Math.PI / 2);
+  kestrel.group.rotation.x = -phys.pitch;
+  kestrel.group.rotation.z = -phys.roll;
+  kestrel.prop.rotation.z -= dt * (6 + phys.throttle * 26 + phys.speed * 0.35);
+  // In the cockpit the spinning blades freeze across the windscreen in a
+  // still frame, so the prop is hidden there and shown in chase view.
+  kestrel.prop.visible = chase.mode !== 'cockpit';
+  const blink = 1.6 + 1.4 * Math.sin(t * 6);
+  kestrel.lights.tail.material.emissiveIntensity = blink;
+
+  world.update(dt, t);
+  course.update(t);
+  scene.userData.cameraPos = camera.position;
+  chase.update(phys, dt);
+
+  if (mode.state === 'flying' || mode.state === 'done' || mode.state === 'crashed') {
+    hud.update(phys, mode, performance.now());
+    drawCluster(clusterCanvas, phys);
+  }
   renderer.render(scene, camera);
 }
 animate();
-window.__ready = true;
+
+// Test hooks: the playtest reads state and drives the game through these.
+window.__kestrel = {
+  phys, mode, course, world, chase, input,
+  startMode, backToMenu,
+  get autopilot() { return autopilot; },
+  set autopilot(v) { autopilot = v; },
+  get frames() { return frames; },
+};

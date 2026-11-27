@@ -1,29 +1,30 @@
-// serve.ts — tiny static server for local play-testing of Golden Hour: Twelve Rings.
-// Serves game/ at http://localhost:8080. Standard library only, no dependencies.
+// serve.ts — tiny dev server for local playtesting (Node 22, stdlib only).
+// Serves game/ at / and screenshots/ at /screenshots/. Usage:
+//   node serve.ts [port]   (default 8080)
 import { createServer } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
-import { join, extname } from 'node:path';
+import { dirname, join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const here = fileURLToPath(new URL('.', import.meta.url));
-const root = join(here, 'game');
-const types = {
+const here = dirname(fileURLToPath(import.meta.url));
+const port = Number(process.argv[2] || 8080);
+const MIME: Record<string, string> = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
-  '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg',
+  '.css': 'text/css', '.json': 'application/json', '.jpg': 'image/jpeg',
+  '.png': 'image/png', '.svg': 'image/svg+xml',
 };
 
 const server = createServer((req, res) => {
-  const path = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
-  const file = join(root, path === '/' ? 'index.html' : path);
-  if (!file.startsWith(root) || !existsSync(file)) {
+  const url = decodeURIComponent((req.url || '/').split('?')[0]);
+  const rel = url === '/' ? 'index.html' : url.replace(/^\/+/, '');
+  const roots = url.startsWith('/screenshots/') ? [here] : [join(here, 'game')];
+  const file = normalize(join(roots[0], rel));
+  if (!file.startsWith(roots[0]) || !existsSync(file)) {
     res.writeHead(404, { 'content-type': 'text/plain' });
     res.end('not found');
     return;
   }
-  res.writeHead(200, { 'content-type': types[extname(file)] ?? 'application/octet-stream' });
+  res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' });
   res.end(readFileSync(file));
 });
-
-server.listen(8080, () => {
-  console.log('Golden Hour: Twelve Rings at http://localhost:8080');
-});
+server.listen(port, () => console.log(`Golden Hour dev server: http://localhost:${port}/`));
